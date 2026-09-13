@@ -201,7 +201,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
-        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         if cookie:
             self.send_header('Set-Cookie', cookie)
         self.end_headers()
@@ -240,7 +240,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             path = self.path.split('?')[0]
             if not path.startswith('/api/'):
-                files = {'/': ('index.html','text/html; charset=utf-8'), '/app.js': ('app.js','text/javascript; charset=utf-8'), '/style.css': ('style.css','text/css; charset=utf-8')}
+                files = {'/vendor/bootstrap.min.css': ('vendor/bootstrap.min.css','text/css; charset=utf-8'), '/': ('index.html','text/html; charset=utf-8'), '/app.js': ('app.js','text/javascript; charset=utf-8'), '/style.css': ('style.css','text/css; charset=utf-8')}
                 if self.command != 'GET' or path not in files:
                     raise Invalid('찾을 수 없습니다.',404)
                 filename, mime = files[path]

@@ -66,3 +66,7 @@ Python 컴파일과 JavaScript 구문 검사를 통과했습니다. 브라우저
 성적에 `score_mode`(total/split), `objective_score`, `written_score`, `objective_max`, `written_max`를 추가했습니다. 서버 시작 시 기존 테이블에 열을 추가하며 기존 기록은 total과 NULL 영역 값으로 보존합니다. 나눠 입력은 만점 기본값 70/30을 제공하고 각 점수·만점을 필수 검증합니다. 만점 합계는 100이며 총점은 Decimal로 합산 후 기존 score에 저장합니다. 그래프는 기존 총점을 계속 사용합니다. 총점만 입력으로 전환하면 영역 값은 NULL로 정리됩니다. 카테고리별 기본 배점 설정은 추가하지 않았습니다.
 
 통합 테스트 6개 통과: 영역별 점수 검증, 80/20 변경과 재조회, 소수·0점, 입력 방식 양방향 전환, 충돌, 백업 보존, 기존 DB의 반복 가능한 마이그레이션을 포함합니다. 실제 브라우저의 입력 전환 동작은 별도 확인이 필요합니다.
+
+## Bootstrap UI
+
+[Bootstrap 공식 배포](https://getbootstrap.com/docs/5.3/getting-started/download/)의 5.3.8 CSS를 `static/vendor/`에 포함하고 공개 SHA-384와 일치함을 확인했습니다. MIT 라이선스를 함께 보관합니다. 버튼·카드·폼·탭은 Bootstrap 클래스를 사용하고 색상과 크기는 `style.css`로 조정합니다. 기본 글자는 20px, 원생 이름·학교·학년은 22px입니다. 대화상자는 기존 네이티브 dialog를 사용하며 Bootstrap JavaScript 의존성은 없습니다. select 화살표용 내장 SVG를 위해 CSP img-src에 data:를 허용합니다. 앱의 새로고침 버튼은 제거하고 기존 저장 후·화면 이동 시 서버 재조회를 유지합니다.

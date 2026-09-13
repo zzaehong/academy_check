@@ -90,3 +90,5 @@ nav button.active:hover{background:#102747}
 
 
 small{font-size:20px}button{font-weight:600}input::placeholder,textarea::placeholder{color:#526581;opacity:1}.muted,footer{font-weight:400}h1{font-weight:700}.heading{flex-wrap:wrap}.login{max-width:480px}
+
+.score-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.score-fields fieldset{min-width:0;margin:0;padding:14px;border:1px solid #c5cfdf;border-radius:10px}.score-fields legend{font-weight:700;color:#183766}#score-preview{font-weight:700;color:#183766}@media(max-width:500px){.score-fields{grid-template-columns:1fr}}

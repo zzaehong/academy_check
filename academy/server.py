@@ -12,6 +12,7 @@ import re
 import threading
 import time
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,6 +44,13 @@ def initialize(path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
     with connect(path) as db:
         db.executescript(SCHEMA)
+        # 기존 총점 기록은 그대로 두고 영역별 점수 열만 추가한다.
+        columns = {row['name'] for row in db.execute('PRAGMA table_info(scores)')}
+        for column in ('objective_score', 'written_score', 'objective_max', 'written_max'):
+            if column not in columns:
+                db.execute(f'ALTER TABLE scores ADD COLUMN {column} REAL')
+        if 'score_mode' not in columns:
+            db.execute("ALTER TABLE scores ADD COLUMN score_mode TEXT NOT NULL DEFAULT 'total'")
         if not db.execute('SELECT 1 FROM categories').fetchone():
             db.executemany('INSERT INTO categories(name) VALUES(?)', [(n,) for n in CATEGORIES])
     os.chmod(path, 0o600)
@@ -119,10 +127,38 @@ class Invalid(Exception):
 
 
 def validate(kind, data):
+    parts = ('objective_score', 'written_score', 'objective_max', 'written_max')
     allowed = set(FIELDS[kind]) | {'version'}
+    if kind == 'scores':
+        allowed |= set(parts) | {'score_mode'}
     if set(data) - allowed:
         raise Invalid('허용하지 않는 입력 항목입니다. 만점은 100점으로 고정됩니다.')
     result = {}
+    if kind == 'scores':
+        data = dict(data)
+        mode = data.get('score_mode', 'total')
+        if mode not in ('total', 'split'):
+            raise Invalid('점수 입력 방식을 선택해 주세요.', field='score_mode')
+        result['score_mode'] = mode
+        if mode == 'split':
+            numbers = {}
+            for field in parts:
+                value = data.get(field)
+                if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 100:
+                    raise Invalid('0~100 사이의 숫자를 입력해 주세요.', field=field)
+                numbers[field] = Decimal(str(value))
+            if numbers['objective_max'] + numbers['written_max'] != 100:
+                raise Invalid('객관식과 서술형 만점의 합은 100점이어야 합니다.', field='written_max')
+            for prefix in ('objective', 'written'):
+                if numbers[prefix + '_score'] > numbers[prefix + '_max']:
+                    raise Invalid('해당 영역의 만점을 초과할 수 없습니다.', field=prefix + '_score')
+            # 총점은 클라이언트가 보낸 값을 신뢰하지 않고 영역별 점수로 계산한다.
+            data['score'] = float(numbers['objective_score'] + numbers['written_score'])
+            result.update({field: float(value) for field, value in numbers.items()})
+        else:
+            if any(data.get(field) is not None for field in parts):
+                raise Invalid('영역별 점수는 나눠 입력 방식을 선택해 주세요.', field='score_mode')
+            result.update({field: None for field in parts})
     for field in FIELDS[kind]:
         value = data.get(field, '')
         if field in ('student_id', 'category_id'):

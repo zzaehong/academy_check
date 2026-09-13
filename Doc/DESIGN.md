@@ -60,3 +60,9 @@ Python 컴파일과 JavaScript 구문 검사를 통과했습니다. 브라우저
 5. 업체의 실제 월 비용 합계 확인 후 운영 배포.
 
 비밀번호 저장 설정 근거: [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html). 추가 통합 테스트로 해시 저장, 파일 권한, 비밀번호 교체 후 이전 로그인·세션 차단, 잘못된 설정 거부, 새 DB 인증값 동기화를 검증합니다.
+
+## 영역별 성적 입력 (PRD v0.3)
+
+성적에 `score_mode`(total/split), `objective_score`, `written_score`, `objective_max`, `written_max`를 추가했습니다. 서버 시작 시 기존 테이블에 열을 추가하며 기존 기록은 total과 NULL 영역 값으로 보존합니다. 나눠 입력은 만점 기본값 70/30을 제공하고 각 점수·만점을 필수 검증합니다. 만점 합계는 100이며 총점은 Decimal로 합산 후 기존 score에 저장합니다. 그래프는 기존 총점을 계속 사용합니다. 총점만 입력으로 전환하면 영역 값은 NULL로 정리됩니다. 카테고리별 기본 배점 설정은 추가하지 않았습니다.
+
+통합 테스트 6개 통과: 영역별 점수 검증, 80/20 변경과 재조회, 소수·0점, 입력 방식 양방향 전환, 충돌, 백업 보존, 기존 DB의 반복 가능한 마이그레이션을 포함합니다. 실제 브라우저의 입력 전환 동작은 별도 확인이 필요합니다.

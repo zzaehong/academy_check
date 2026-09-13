@@ -77,6 +77,66 @@ class AppTest(unittest.TestCase):
             self.assertEqual(tuple(db.execute('SELECT salt,password FROM admin').fetchone()),
                              tuple(original.execute('SELECT salt,password FROM admin').fetchone()))
 
+    def test_split_scores_validation_edit_and_backup(self):
+        student = self.create('students', {'name':'영역별 시험'})
+        base = dict(student_id=student['id'], category_id=1, date='2026-09-13',
+                    title='중간고사', score_mode='split', objective_max=70,
+                    written_max=30, objective_score=60.5, written_score=25)
+        score = self.create('scores', dict(base, score=1))
+        self.assertEqual(score['score'], 85.5)
+        self.assertEqual(score['objective_max'], 70)
+        for changes in ({'objective_score':71}, {'written_score':31},
+                        {'objective_score':-1}, {'written_score':None},
+                        {'objective_max':80}, {'written_max':float('nan')},
+                        {'score_mode':'other'}, {'objective_max':True}):
+            self.assertEqual(self.request('POST','scores',dict(base, **changes))[0],400)
+        missing = dict(base)
+        del missing['written_max']
+        self.assertEqual(self.request('POST','scores',missing)[0],400)
+        zero = self.create('scores',dict(base,objective_score=0,written_score=0))
+        self.assertEqual(zero['score'],0)
+        updated = dict(base,objective_max=80,written_max=20,objective_score=75.1,
+                       written_score=19.2,version=score['version'])
+        status, result = self.request('PUT',f"scores/{score['id']}",updated)
+        self.assertEqual(status,200)
+        self.assertEqual(result['score'],94.3)
+        self.assertEqual(self.request('PUT',f"scores/{score['id']}",updated)[0],409)
+        saved = self.request('GET','scores')[1][0]
+        self.assertEqual(saved['written_max'],20)
+        target = backup(self.path,Path(self.temp.name)/'split-backup')
+        with connect(target) as db:
+            row = db.execute('SELECT * FROM scores WHERE id=?',(score['id'],)).fetchone()
+            self.assertEqual(row['objective_score'],75.1)
+            self.assertEqual(row['score_mode'],'split')
+        total = {k:v for k,v in base.items() if k not in
+                 ('score_mode','objective_max','written_max','objective_score','written_score')}
+        status, result = self.request('PUT',f"scores/{score['id']}",dict(total,score=88,score_mode='total',version=2))
+        self.assertEqual(status,200)
+        self.assertIsNone(result['objective_score'])
+        self.assertIsNone(result['written_max'])
+        self.assertEqual(result['score'],88)
+        status, result = self.request('PUT',f"scores/{score['id']}",dict(base,version=3))
+        self.assertEqual(status,200)
+        self.assertEqual(result['score_mode'],'split')
+
+    def test_existing_score_database_migration(self):
+        from academy.server import SCHEMA, initialize
+        legacy = str(Path(self.temp.name)/'legacy.sqlite3')
+        with connect(legacy) as db:
+            db.executescript(SCHEMA)
+            db.execute("INSERT INTO students(name) VALUES('기존 원생')")
+            db.execute("INSERT INTO categories(name) VALUES('기존 카테고리')")
+            db.execute("INSERT INTO scores(student_id,category_id,date,title,score,difficulty) VALUES(1,1,'2026-09-13','기존 시험',91.5,'')")
+        initialize(legacy)
+        initialize(legacy)
+        with connect(legacy) as db:
+            record = db.execute('SELECT * FROM scores').fetchone()
+            self.assertEqual(record['score'],91.5)
+            self.assertEqual(record['version'],1)
+            self.assertEqual(record['score_mode'],'total')
+            self.assertIsNone(record['objective_max'])
+            self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(),[])
+
     def test_auth_csrf_logout(self):
         cookie=self.cookie
         self.cookie=''

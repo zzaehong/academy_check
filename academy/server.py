@@ -66,17 +66,65 @@ def sync_credentials(path, salt, digest):
 
 
 def load_credentials(path, env_path):
-    # 셸 실행이나 변수 확장 없이 지정한 키만 읽는다. 잘못된 설정은 기존 DB로 우회하지 않는다.
-    env_path = Path(env_path)
-    if env_path.is_symlink() or not env_path.is_file():
-        raise ValueError('.env 설정이 없습니다. set-password를 실행하세요.')
-    if env_path.stat().st_mode & 0o077:
-        raise ValueError('.env 권한을 600으로 설정하세요: chmod 600 ' + str(env_path))
-    entries = [line.split('=', 1)[1].strip() for line in env_path.read_text().splitlines()
-               if line.split('=', 1)[0].strip() == 'ADMIN_PASSWORD_HASH' and '=' in line]
-    if len(entries) != 1 or not re.fullmatch(r'scrypt:16384:8:5:[0-9a-f]{64}:[0-9a-f]{128}', entries[0]):
-        raise ValueError('ADMIN_PASSWORD_HASH 설정이 올바르지 않습니다. set-password를 실행하세요.')
-    salt, digest = entries[0].split(':')[-2:]
+    # 우선순위:
+    # 1. OS 환경변수 ADMIN_PASSWORD_HASH
+    # 2. 로컬 .env 파일
+    #
+    # 설정이 존재하지만 잘못된 경우 다른 설정으로 우회하지 않는다.
+
+    pattern = r'scrypt:16384:8:5:[0-9a-f]{64}:[0-9a-f]{128}'
+
+    # 1. 운영환경(Cloudtype 등)의 OS 환경변수 확인
+    env_value = os.environ.get('ADMIN_PASSWORD_HASH')
+
+    if env_value is not None:
+        env_value = env_value.strip()
+
+        if not re.fullmatch(pattern, env_value):
+            raise ValueError(
+                '환경변수 ADMIN_PASSWORD_HASH 설정이 올바르지 않습니다.'
+            )
+
+        credential = env_value
+
+    # 2. 환경변수가 없을 때만 로컬 .env 사용
+    else:
+        env_path = Path(env_path)
+
+        if env_path.is_symlink() or not env_path.is_file():
+            raise ValueError(
+                'ADMIN_PASSWORD_HASH 환경변수 또는 .env 설정이 없습니다. '
+                '로컬 환경에서는 set-password를 실행하세요.'
+            )
+
+        if env_path.stat().st_mode & 0o077:
+            raise ValueError(
+                '.env 권한을 600으로 설정하세요: chmod 600 ' + str(env_path)
+            )
+
+        entries = [
+            line.split('=', 1)[1].strip()
+            for line in env_path.read_text().splitlines()
+            if '=' in line
+            and line.split('=', 1)[0].strip() == 'ADMIN_PASSWORD_HASH'
+        ]
+
+        if len(entries) != 1:
+            raise ValueError(
+                'ADMIN_PASSWORD_HASH 설정이 없거나 중복되어 있습니다. '
+                'set-password를 실행하세요.'
+            )
+
+        if not re.fullmatch(pattern, entries[0]):
+            raise ValueError(
+                'ADMIN_PASSWORD_HASH 설정이 올바르지 않습니다. '
+                'set-password를 실행하세요.'
+            )
+
+        credential = entries[0]
+
+    # DB 동기화
+    salt, digest = credential.split(':')[-2:]
     sync_credentials(path, salt, 'scrypt5:' + digest)
 
 

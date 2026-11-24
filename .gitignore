@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 var/
+.DS_Store
 .env
 .venv/
 .env.*

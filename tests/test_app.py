@@ -213,5 +213,23 @@ class AppTest(unittest.TestCase):
             second.server_close()
 
 
+class LocalModeTest(unittest.TestCase):
+    def test_local_mode_needs_no_login_but_blocks_foreign_requests(self):
+        with tempfile.TemporaryDirectory() as temp:
+            server = make_server(str(Path(temp) / 'l.sqlite3'), port=0, local=True)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            def call(method, path, headers=None, body=None):
+                conn = http.client.HTTPConnection('127.0.0.1', server.server_port)
+                conn.request(method, path, body=body, headers=headers or {})
+                response = conn.getresponse(); response.read(); conn.close()
+                return response.status
+            json_headers = {'Content-Type': 'application/json'}
+            self.assertEqual(call('GET', '/api/students'), 200)
+            self.assertEqual(call('GET', '/api/students', {'Host': 'evil.example'}), 403)
+            self.assertEqual(call('POST', '/api/students', json_headers, '{"name":"a"}'), 403)
+            self.assertEqual(call('POST', '/api/students', {**json_headers, 'X-CSRF-Token': 'local'}, '{"name":"a"}'), 200)
+            server.shutdown(); server.server_close()
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -268,6 +268,13 @@ class Handler(BaseHTTPRequestHandler):
             raise Invalid('올바른 요청 본문이 필요합니다.')
 
     def session(self, db):
+        if self.server.local:
+            # 로컬 모드: 로그인 없이 같은 PC의 앱만 허용한다. Host와 헤더를 검사해 다른 사이트의 요청을 막는다.
+            if self.headers.get('Host', '').rsplit(':', 1)[0] not in ('127.0.0.1', 'localhost'):
+                raise Invalid('허용하지 않는 접속입니다.', 403)
+            if self.command != 'GET' and self.headers.get('X-CSRF-Token') != 'local':
+                raise Invalid('세션을 다시 확인해 주세요.', 403)
+            return {'token': '', 'csrf': 'local'}
         cookies = SimpleCookie()
         try:
             cookies.load(self.headers.get('Cookie', ''))
@@ -318,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(200, {'csrf':csrf}, self.cookie(token,43200))
                 session = self.session(db)
                 if path == '/api/session' and self.command == 'GET':
-                    return self.reply(200, {'csrf':session['csrf']})
+                    return self.reply(200, {'csrf':session['csrf'],'local':self.server.local})
                 if path == '/api/logout' and self.command == 'POST':
                     db.execute('DELETE FROM sessions WHERE token=?',(session['token'],))
                     db.commit()
@@ -380,10 +387,10 @@ class Handler(BaseHTTPRequestHandler):
     do_GET = do_POST = do_PUT = do_DELETE = handle_request
 
 
-def make_server(path, host='127.0.0.1', port=8000, secure=False):
+def make_server(path, host='127.0.0.1', port=8000, secure=False, local=False):
     initialize(path)
     server = ThreadingHTTPServer((host,port),Handler)
-    server.db_path, server.secure = path, secure
+    server.db_path, server.secure, server.local = path, secure, local
     server.login_lock, server.attempts = threading.Lock(), []
     return server
 
@@ -396,6 +403,7 @@ def main():
     parser.add_argument('--backups',default='var/backups')
     parser.add_argument('--host',default='127.0.0.1')
     parser.add_argument('--port',type=int,default=8000)
+    parser.add_argument('--local',action='store_true',help='이 PC 전용: 로그인 없이 실행하고 브라우저를 자동으로 연다')
     parser.add_argument('--secure',action='store_true',help='HTTPS 프록시 뒤에서 Secure 쿠키 사용')
     args = parser.parse_args()
     os.umask(0o077)
@@ -410,10 +418,13 @@ def main():
     elif args.action == 'backup':
         print(backup(args.db,args.backups))
     else:
-        try:
-            load_credentials(args.db, args.env_file)
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from None
+        if args.local:
+            args.host = '127.0.0.1'
+        else:
+            try:
+                load_credentials(args.db, args.env_file)
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from None
         backup(args.db,args.backups)
         def schedule():
             while True:
@@ -423,8 +434,11 @@ def main():
                 except Exception:
                     print('자동 백업 실패: 저장 공간과 백업 경로 권한을 확인하세요.',flush=True)
         threading.Thread(target=schedule,daemon=True).start()
-        server = make_server(args.db,args.host,args.port,args.secure)
+        server = make_server(args.db,args.host,args.port,args.secure,args.local)
         print(f'http://{args.host}:{args.port} 에서 실행 중',flush=True)
+        if args.local:
+            import webbrowser
+            threading.Timer(0.5, webbrowser.open, [f'http://{args.host}:{args.port}']).start()
         server.serve_forever()
 
 

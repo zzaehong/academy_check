@@ -111,3 +111,13 @@ footer { margin-top: 1.2rem; }
 #record-panel[aria-busy="true"] { opacity: .65; }
 #record-panel { transition: opacity 150ms; }
 @media (prefers-reduced-motion: reduce) { .mode-switch::before, .record-tabs::before, #record-panel { transition: none; } }
+
+/* 대시보드 */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .8rem; }
+.stat { padding: 1rem; background: #f6f9fd; border: 1px solid #dce4ef; border-radius: .7rem; }
+.stat span { display: block; }
+.stat strong { font-size: 30px; color: #20395f; }
+.dash-title { margin: 1.8rem 0 .4rem; }
+.avg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: .8rem; padding: .3rem 0; }
+.avg progress { width: 100%; height: 14px; accent-color: #233f69; }
+@media (max-width: 750px) { .avg { grid-template-columns: 1fr; gap: .2rem; } }

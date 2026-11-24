@@ -70,3 +70,9 @@ Python 컴파일과 JavaScript 구문 검사를 통과했습니다. 브라우저
 ## Bootstrap UI
 
 [Bootstrap 공식 배포](https://getbootstrap.com/docs/5.3/getting-started/download/)의 5.3.8 CSS를 `static/vendor/`에 포함하고 공개 SHA-384와 일치함을 확인했습니다. MIT 라이선스를 함께 보관합니다. 버튼·카드·폼·탭은 Bootstrap 클래스를 사용하고 색상과 크기는 `style.css`로 조정합니다. 기본 글자는 20px, 원생 이름·학교·학년은 22px입니다. 대화상자는 기존 네이티브 dialog를 사용하며 Bootstrap JavaScript 의존성은 없습니다. select 화살표용 내장 SVG를 위해 CSP img-src에 data:를 허용합니다. 앱의 새로고침 버튼은 제거하고 기존 저장 후·화면 이동 시 서버 재조회를 유지합니다.
+
+## 대시보드와 로컬 모드 (v1.0.0)
+
+로그인 후 첫 화면은 대시보드입니다. 별도 API 없이 기존 `GET /api/*` 5개 응답을 브라우저에서 집계해 원생·사용 중 교재·이번 달(한국 시간) 일지·시험 수, 카테고리별 평균 점수, 최근 일지·성적 5건을 보여 줍니다. CSP가 인라인 스타일을 막으므로 막대는 `<progress>` 요소를 사용합니다.
+
+`--local`은 혼자 쓰는 PC용 실행 모드입니다. 호스트를 127.0.0.1로 고정하고 비밀번호·`.env` 로딩과 로그인을 생략하며, 세션 대신 고정 CSRF 값(`local`)과 `Host` 헤더(127.0.0.1/localhost)를 검사해 다른 사이트나 DNS rebinding 요청을 차단합니다. 같은 PC의 다른 사용자는 접근할 수 있으므로 공용 PC나 외부 노출에는 서버 모드를 사용합니다. 브라우저가 localhost를 열었을 때는 오프라인 안내 화면을 표시하지 않습니다. 데이터 저장·백업·검증 경로는 서버 모드와 같으며 `start.command`가 macOS용 실행기입니다. 통합 테스트 7개 통과(로컬 모드 1개 포함).

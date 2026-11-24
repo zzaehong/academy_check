@@ -169,6 +169,25 @@ def backup(path, directory):
     return target
 
 
+def default_paths(local):
+    # 로컬 모드는 프로그램 폴더를 교체·삭제해도 남도록 사용자 문서 폴더에 둔다.
+    if not local:
+        return 'var/academy.sqlite3', 'var/backups'
+    home = Path.home()
+    base = (home / 'Documents' if (home / 'Documents').is_dir() else home) / '원생노트'
+    return str(base / 'academy.sqlite3'), str(base / 'backups')
+
+
+def migrate_legacy(old, new):
+    # 이전 버전(var/)의 DB가 있고 새 위치가 비어 있으면 한 번 복사한다. 원본은 지우지 않는다.
+    if not Path(old).is_file() or Path(new).exists():
+        return False
+    Path(new).parent.mkdir(parents=True, exist_ok=True)
+    with connect(old) as source, sqlite3.connect(new) as dest:
+        source.backup(dest)
+    return True
+
+
 class Invalid(Exception):
     def __init__(self, message, status=400, field=None):
         self.message, self.status, self.field = message, status, field
@@ -295,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             path = self.path.split('?')[0]
             if not path.startswith('/api/'):
-                files = {'/vendor/bootstrap.min.css': ('vendor/bootstrap.min.css','text/css; charset=utf-8'), '/': ('index.html','text/html; charset=utf-8'), '/app.js': ('app.js','text/javascript; charset=utf-8'), '/style.css': ('style.css','text/css; charset=utf-8')}
+                files = {'/vendor/bootstrap.min.css': ('vendor/bootstrap.min.css','text/css; charset=utf-8'), '/': ('index.html','text/html; charset=utf-8'), '/app.js': ('app.js','text/javascript; charset=utf-8'), '/data.js': ('data.js','text/javascript; charset=utf-8'), '/style.css': ('style.css','text/css; charset=utf-8')}
                 if self.command != 'GET' or path not in files:
                     raise Invalid('찾을 수 없습니다.',404)
                 filename, mime = files[path]
@@ -398,15 +417,20 @@ def make_server(path, host='127.0.0.1', port=8000, secure=False, local=False):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('action', choices=['serve','set-password','backup'], nargs='?', default='serve')
-    parser.add_argument('--db',default='var/academy.sqlite3')
+    parser.add_argument('--db')
     parser.add_argument('--env-file', default=str(ROOT / '.env'))
-    parser.add_argument('--backups',default='var/backups')
+    parser.add_argument('--backups')
     parser.add_argument('--host',default='127.0.0.1')
     parser.add_argument('--port',type=int,default=8000)
     parser.add_argument('--local',action='store_true',help='이 PC 전용: 로그인 없이 실행하고 브라우저를 자동으로 연다')
     parser.add_argument('--secure',action='store_true',help='HTTPS 프록시 뒤에서 Secure 쿠키 사용')
     args = parser.parse_args()
     os.umask(0o077)
+    db_default, backups_default = default_paths(args.local)
+    args.db = args.db or db_default
+    args.backups = args.backups or backups_default
+    if args.local and args.db == db_default and migrate_legacy('var/academy.sqlite3', args.db):
+        print('이전 데이터(var/)를 새 위치로 복사했습니다. 원본은 지우지 않았습니다.', flush=True)
     initialize(args.db)
     if args.action == 'set-password':
         import getpass
@@ -438,6 +462,7 @@ def main():
         print(f'http://{args.host}:{args.port} 에서 실행 중',flush=True)
         if args.local:
             import webbrowser
+            print(f'데이터 위치: {Path(args.db).resolve().parent}', flush=True)
             threading.Timer(0.5, webbrowser.open, [f'http://{args.host}:{args.port}']).start()
         server.serve_forever()
 

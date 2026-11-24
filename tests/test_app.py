@@ -5,7 +5,7 @@ import tempfile
 import threading
 import unittest
 
-from academy.server import backup, connect, make_server, set_password, load_credentials
+from academy.server import backup, connect, default_paths, initialize, load_credentials, make_server, migrate_legacy, set_password
 
 
 class AppTest(unittest.TestCase):
@@ -229,6 +229,27 @@ class LocalModeTest(unittest.TestCase):
             self.assertEqual(call('POST', '/api/students', json_headers, '{"name":"a"}'), 403)
             self.assertEqual(call('POST', '/api/students', {**json_headers, 'X-CSRF-Token': 'local'}, '{"name":"a"}'), 200)
             server.shutdown(); server.server_close()
+
+
+class DataLocationTest(unittest.TestCase):
+    def test_default_paths(self):
+        self.assertEqual(default_paths(False), ('var/academy.sqlite3', 'var/backups'))
+        db, backups = default_paths(True)
+        self.assertEqual(Path(db).parent, Path(backups).parent)
+        self.assertEqual(Path(db).parent.name, '원생노트')
+
+    def test_legacy_data_is_copied_once_and_kept(self):
+        with tempfile.TemporaryDirectory() as temp:
+            old, new = str(Path(temp) / 'old.sqlite3'), str(Path(temp) / 'sub' / 'new.sqlite3')
+            self.assertFalse(migrate_legacy(old, new))  # 원본이 없으면 아무것도 하지 않는다
+            initialize(old)
+            with connect(old) as db:
+                db.execute("INSERT INTO students(name) VALUES('김')")
+            self.assertTrue(migrate_legacy(old, new))
+            with connect(new) as db:
+                self.assertEqual(db.execute('SELECT name FROM students').fetchone()['name'], '김')
+            self.assertTrue(Path(old).exists())
+            self.assertFalse(migrate_legacy(old, new))  # 새 위치가 있으면 덮어쓰지 않는다
 
 
 if __name__ == '__main__':

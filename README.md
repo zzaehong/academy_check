@@ -4,7 +4,7 @@
 
 ## 실행 방법 1: 내 PC에서 혼자 쓰기 (로컬 모드)
 
-`start.command`를 더블클릭하거나 터미널에서 실행합니다. 서버가 시작되고 브라우저가 자동으로 열립니다. 종료는 터미널 창을 닫거나 Ctrl+C입니다.
+macOS는 `start.command`, Windows는 `start.bat`을 더블클릭합니다(Windows는 [Python](https://www.python.org/downloads/)을 먼저 설치하고 설치 화면에서 "Add python.exe to PATH"를 체크). 터미널에서 직접 실행해도 됩니다. 서버가 시작되고 브라우저가 자동으로 열립니다. 종료는 터미널 창을 닫거나 Ctrl+C입니다.
 
 ```bash
 python3 -m academy.server --local
